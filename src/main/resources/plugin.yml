@@ -1,0 +1,18 @@
+name: AntiCrashProtector
+version: 1.1.1
+main: com.anticrash.AntiCrashPlugin
+api-version: '1.21'
+authors: [MXZD]
+description: 防止服务器因玩家数据损坏而崩溃
+permissions:
+  anticrash.admin:
+    description: 允许使用所有防崩溃插件命令
+    default: op
+  anticrash.bypass.cooldown:
+    description: 绕过命令冷却时间
+    default: false
+commands:
+  anticrash:
+    description: 防崩溃插件管理命令
+    usage: /anticrash <status|reload|safety|repair|check>
+    permission: anticrash.admin

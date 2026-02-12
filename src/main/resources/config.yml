@@ -1,0 +1,133 @@
+# AntiCrashProtector 配置文件
+# 版本: 1.1.2
+config-version: 1
+
+# ==========================================
+# 基本设置
+# ==========================================
+# 是否启用插件功能
+enabled: true
+# 调试模式：开启后会在后台输出更详细的扫描日志（建议仅在排查问题时开启）
+debug-mode: false
+
+# ==========================================
+# 语言消息设置 (支持颜色代码 &)
+# ==========================================
+messages:
+  prefix: "&e[AntiCrash] &r"
+  no-permission: "&c你没有权限执行此命令！"
+  reload-success: "&a配置文件已重载！"
+  monitor-not-enabled: "&c监控模块未启用！"
+  manual-check-start: "&e正在手动触发全服检查..."
+  manual-check-finish: "&a全服检查完成！"
+  manual-repair-success: "&a已尝试修复您的数据并传送回出生点。"
+  only-player: "&c该命令只能由玩家执行。"
+  command-blocked: "&c安全检查失败，命令已被阻止。请联系管理员。"
+  command-processing: "&e正在安全处理您的传送请求..."
+  command-error: "&c命令执行出错，已为您传送到安全点。"
+  data-corrupted: "&c检测到您的数据异常，已自动修复并传送回出生点。"
+  kick-message: "&c数据严重损坏，请重新登录。"
+  diagnose-header: "&c安全系统检测到您的数据存在风险："
+  diagnose-items: "&e- 异常项目: &f{items}"
+  diagnose-action-place: "&a- 处理结果: 已原地修复，不影响当前操作"
+  diagnose-action-teleport: "&6- 处理结果: 已传送到安全位置以避免崩溃"
+  diagnose-action-blocked: "&c- 处理结果: 已阻止本次指令以避免崩溃"
+  diagnose-continue: "&a- 后续操作: 将继续执行您的指令"
+  diagnose-advice: "&7[建议] {advice}"
+  diagnose-manual-ok: "&a当前未检测到异常，无需修复。"
+  safety-toggle: "&e命令保护状态已切换为: {state}"
+  safety-reboot: "&e请执行 /anticrash reload 或重启服务器以完全生效。"
+  issue-labels:
+    location: "位置数据"
+    health: "生命值"
+    attributes: "核心属性"
+    effects: "药水效果"
+    inventory: "物品数据"
+    general: "未知异常"
+  issue-advice:
+    location: "请避免前往异常坐标或等待区块稳定后再传送"
+    health: "请避免异常药水或异常属性堆叠"
+    attributes: "请检查是否穿戴了异常装备或模组物品"
+    effects: "请脱下相关装备或移除异常药水效果"
+    inventory: "请检查背包内刚获得的物品或暂时卸下装备"
+    general: "建议重新登录或联系管理员进一步排查"
+
+# ==========================================
+# 命令保护设置 (在玩家传送前进行安检)
+# ==========================================
+command-protection:
+  # 是否在玩家执行传送指令前进行数据检查
+  enabled: true
+  # 同一指令的冷却时间（毫秒），防止指令刷屏
+  cooldown: 1000
+  # 检查后的延迟执行时间（ticks），1秒=20ticks。设为2-5可确保数据同步。
+  delay-ticks: 2
+  
+  # 受保护的命令列表：这些命令在执行前会触发数据扫描
+  protected-commands:
+    - "back"
+    - "home"
+    - "tp"
+    - "tpa"
+    - "tpaccept"
+    - "tpahere"
+    - "tpyes"
+    - "warp"
+    - "spawn"
+    - "rtp"
+    - "wild"
+
+# ==========================================
+# 自动监控设置 (后台定时循环扫描)
+# ==========================================
+monitoring:
+  # 是否开启后台自动循环监控
+  enabled: true
+  # 检查间隔（ticks），建议 100 (5秒)。数值越小扫描越频繁，但性能消耗略增。
+  check-interval: 100
+  
+  # 具体的检查项目开关
+  checks:
+    attributes: true # 全属性检查 (30+ 属性的 NaN/非法值拦截)
+    location: true   # 坐标有效性检查 (越界、非法数值)
+    inventory: true  # 物品栏完整性检查
+    effects: true    # 药水效果等级检查 (防止超限药水崩服)
+    vehicle: true    # 载具状态检查 (防止骑乘不存在的实体引发心跳崩溃)
+
+# ==========================================
+# 修复策略设置
+# ==========================================
+repair:
+  # 是否开启发现异常后自动尝试修复
+  auto-repair: true
+  # 是否在发现严重异常时强制传送玩家到安全点
+  safe-teleport: true
+  # 是否仅在“严重异常”时才传送？(设为 true 则轻微属性错误仅原地重置，不干扰玩家)
+  teleport-on-severe-only: true
+  # 传送时是否优先尝试回到玩家最后一次记录的安全位置？(设为 false 则直接回出生点)
+  prefer-last-safe-location: true
+  # 当玩家处于严重异常状态时，是否直接阻止其正在尝试执行的指令？
+  block-command-on-severe: true
+  # [熔断机制] 如果修复过程中发生不可控错误（修不好了），是否强制踢出玩家以保护服务器不崩？
+  kick-if-unrepairable: true
+  
+  # 修复与判定的具体数值阈值
+  thresholds:
+    # 坐标允许的最大绝对值 (默认3000万，即原版世界边界)
+    coordinate-max: 30000000.0
+    # 允许的最小 Y 坐标 (地底深处)
+    y-min: -64
+    # 允许的最大 Y 坐标 (天空高处)
+    y-max: 320
+    # 最大生命值阈值 (防止属性溢出崩服)
+    health-max: 2048.0
+    # 最小生命值阈值
+    health-min: 0.1
+    # 最大移动速度阈值 (1.0 为原版常规上限)
+    speed-max: 1.0
+    # 最小移动速度阈值
+    speed-min: 0.0
+    # 最大攻击伤害阈值
+    damage-max: 2048.0
+    # 最小攻击伤害阈值
+    damage-min: 0.0

@@ -1,0 +1,38 @@
+# Maven 构建产物
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE 配置 - IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+# IDE 配置 - VS Code
+.vscode/
+.history/
+*.code-workspace
+
+# IDE 配置 - Eclipse
+.settings/
+.project
+.classpath
+.factorypath
+
+# 操作系统临时文件
+.DS_Store
+Thumbs.db
+
+# 插件运行日志与运行时文件
+logs/
+plugins/
+*.log

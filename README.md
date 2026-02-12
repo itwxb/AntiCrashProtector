@@ -8,7 +8,13 @@
 
 **AntiCrashProtector** 是一款专为 Minecraft 服务器设计的轻量级安全防护插件。它能有效拦截非法数据包攻击、修复异常玩家属性、防止由于坐标溢出或非法药水等级导致的服务端崩溃（Crash）。
 
-A lightweight security plugin for Minecraft servers designed to intercept malicious packets, repair abnormal player attributes, and prevent server crashes caused by coordinate overflows or illegal potion levels.
+特别地，它主要解决玩家在传送或移动过程中，由于核心属性（坐标、生命值、速度等）异常错误导致的服务端崩溃或心跳停止（Ticking Exception）问题。
+
+---
+
+**AntiCrashProtector** is a lightweight security plugin for Minecraft servers. It efficiently intercepts malicious packets, repairs abnormal player attributes, and prevents server crashes caused by coordinate overflows or illegal potion levels.
+
+Specifically, it addresses server crashes and Ticking Exceptions caused by core attribute errors (coordinates, health, speed, etc.) during player teleportation or movement.
 
 ---
 

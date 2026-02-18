@@ -1,0 +1,23 @@
+[23:19:13] [Server thread/INFO]: dchangchong issued server command: /tpahere MC_Ch
+[23:19:17] [Async Chat Thread - #5/INFO]: [聊天][生存世界][铁锭]dchangchong[十方岛][王八犊子]: 给你点 [湖北省 | 随州市]
+[23:19:18] [Server thread/INFO]: MC_Ch issued server command: /tpaccept
+[23:19:18] [Server thread/ERROR]: Encountered an unexpected exception
+net.minecraft.ReportedException: Exception ticking world
+	at net.minecraft.server.MinecraftServer.tickChildren(MinecraftServer.java:1811) ~[paper-1.21.10.jar:1.21.10-130-8043efd]
+	at net.minecraft.server.MinecraftServer.tickServer(MinecraftServer.java:1618) ~[paper-1.21.10.jar:1.21.10-130-8043efd]
+	at net.minecraft.server.dedicated.DedicatedServer.tickServer(DedicatedServer.java:430) ~[paper-1.21.10.jar:1.21.10-130-8043efd]
+	at net.minecraft.server.MinecraftServer.runServer(MinecraftServer.java:1338) ~[paper-1.21.10.jar:1.21.10-130-8043efd]
+	at net.minecraft.server.MinecraftServer.lambda$spin$2(MinecraftServer.java:384) ~[paper-1.21.10.jar:1.21.10-130-8043efd]
+	at java.base/java.lang.Thread.run(Thread.java:1583) ~[?:?]
+Caused by: java.lang.NullPointerException: Cannot invoke "it.unimi.dsi.fastutil.objects.ObjectArrayList.get(int)" because "this.wrapped" is null
+	at it.unimi.dsi.fastutil.objects.ObjectOpenHashSet$SetIterator.next(ObjectOpenHashSet.java:575) ~[fastutil-8.5.15.jar:?]
+	at net.minecraft.network.protocol.game.ClientboundUpdateAttributesPacket.<init>(ClientboundUpdateAttributesPacket.java:34) ~[paper-1.21.10.jar:1.21.10-130-8043efd]
+	at net.minecraft.server.level.ServerEntity.sendDirtyEntityData(ServerEntity.java:406) ~[paper-1.21.10.jar:1.21.10-130-8043efd]
+	at net.minecraft.server.level.ServerEntity.sendChanges(ServerEntity.java:223) ~[paper-1.21.10.jar:1.21.10-130-8043efd]
+	at net.minecraft.server.level.ChunkMap.newTrackerTick(ChunkMap.java:1024) ~[paper-1.21.10.jar:1.21.10-130-8043efd]
+	at net.minecraft.server.level.ChunkMap.tick(ChunkMap.java:1033) ~[paper-1.21.10.jar:1.21.10-130-8043efd]
+	at net.minecraft.server.level.ServerChunkCache.tick(ServerChunkCache.java:495) ~[paper-1.21.10.jar:1.21.10-130-8043efd]
+	at net.minecraft.server.level.ServerLevel.tick(ServerLevel.java:794) ~[paper-1.21.10.jar:1.21.10-130-8043efd]
+	at net.minecraft.server.MinecraftServer.tickChildren(MinecraftServer.java:1807) ~[paper-1.21.10.jar:1.21.10-130-8043efd]
+	... 5 more
+[23:19:18] [Server thread/ERROR]: This crash report has been saved to: D:\1.21.10梦想之都服务器\梦想之都1.21.10\crash-reports\crash-2026-02-18_23.19.18-server.txt

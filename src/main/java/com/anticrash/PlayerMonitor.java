@@ -2,6 +2,9 @@ package com.anticrash;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeInstance;
+import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
@@ -11,6 +14,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -250,18 +254,43 @@ public class PlayerMonitor implements Listener {
 
             // 属性检查 (Core Attribute Integrity Check)
             // 针对 1.21+ 常见的 ClientboundUpdateAttributesPacket NPE 崩溃
-            // 遍历所有注册属性并拦截 NaN/Infinity 非法值
+            // 遍历所有注册属性并拦截 NaN/Infinity 非法值，同时检测修饰符集合内部损坏
             if (plugin.getConfig().getBoolean("monitoring.checks.attributes", true)) {
-                for (org.bukkit.attribute.Attribute attr : org.bukkit.attribute.Attribute.values()) {
+                for (Attribute attr : Attribute.values()) {
                     try {
-                        org.bukkit.attribute.AttributeInstance instance = player.getAttribute(attr);
-                        if (instance != null) {
-                            double val = instance.getValue();
-                            double base = instance.getBaseValue();
+                        AttributeInstance attrInstance = player.getAttribute(attr);
+                        if (attrInstance != null) {
+                            double val = attrInstance.getValue();
+                            double base = attrInstance.getBaseValue();
                             
                             // 核心有效性校验：拦截所有可能导致发包崩溃的非有限数值
+                            // 属性值异常只需修复，不传送
                             if (!isValidDouble(val) || !isValidDouble(base)) {
                                 logWarn("检测到高危非法属性值 (NaN/Inf): 玩家=" + player.getName() + " 属性=" + attr.name() + " Value=" + val + " Base=" + base);
+                                diagnosis.issues.add(IssueType.ATTRIBUTES);
+                            }
+                            
+                            // 深度检查：尝试遍历修饰符集合，检测内部结构损坏
+                            // 这是针对 fastutil ObjectOpenHashSet "wrapped is null" 崩溃的关键修复
+                            try {
+                                Collection<AttributeModifier> modifiers = attrInstance.getModifiers();
+                                if (modifiers != null) {
+                                    for (AttributeModifier modifier : modifiers) {
+                                        if (modifier == null) continue;
+                                        // 尝试访问修饰符属性，触发潜在的内部异常
+                                        double amount = modifier.getAmount();
+                                        if (!isValidDouble(amount)) {
+                                            logWarn("检测到属性修饰符数值异常: 玩家=" + player.getName() + " 属性=" + attr.name() + " Amount=" + amount);
+                                            diagnosis.issues.add(IssueType.ATTRIBUTES);
+                                        }
+                                    }
+                                }
+                            } catch (NullPointerException npe) {
+                                // 捕获 fastutil ObjectOpenHashSet 内部 "wrapped is null" 异常
+                                logWarn("检测到属性修饰符集合内部结构损坏 (NPE): 玩家=" + player.getName() + " 属性=" + attr.name() + " 异常=" + npe.getMessage());
+                                diagnosis.issues.add(IssueType.ATTRIBUTES);
+                            } catch (Exception modifierEx) {
+                                logWarn("属性修饰符检查异常: 玩家=" + player.getName() + " 属性=" + attr.name() + " 异常=" + modifierEx.getClass().getSimpleName() + " 信息=" + modifierEx.getMessage());
                                 diagnosis.issues.add(IssueType.ATTRIBUTES);
                             }
                             
@@ -273,21 +302,23 @@ public class PlayerMonitor implements Listener {
                             double healthMaxAttr = plugin.getConfig().getDouble("repair.thresholds.health-max", 1024.0);
                             double healthMinAttr = plugin.getConfig().getDouble("repair.thresholds.health-min", 0.5);
 
-                            if (attr == org.bukkit.attribute.Attribute.GENERIC_MOVEMENT_SPEED && (val > speedMax || val < speedMin)) {
+                            if (attr == Attribute.GENERIC_MOVEMENT_SPEED && (val > speedMax || val < speedMin)) {
                                 logWarn("发现移动速度异常: 玩家=" + player.getName() + " Value=" + val + " 范围=[" + speedMin + "," + speedMax + "] Base=" + base);
                                 diagnosis.issues.add(IssueType.ATTRIBUTES);
                             }
-                            if (attr == org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH && (val > healthMaxAttr || val < healthMinAttr)) {
+                            if (attr == Attribute.GENERIC_MAX_HEALTH && (val > healthMaxAttr || val < healthMinAttr)) {
                                 logWarn("发现最大生命值异常: 玩家=" + player.getName() + " Value=" + val + " 范围=[" + healthMinAttr + "," + healthMaxAttr + "] Base=" + base);
                                 diagnosis.issues.add(IssueType.ATTRIBUTES);
                             }
-                            if (attr == org.bukkit.attribute.Attribute.GENERIC_ATTACK_DAMAGE && (val > damageMax || val < damageMin)) {
+                            if (attr == Attribute.GENERIC_ATTACK_DAMAGE && (val > damageMax || val < damageMin)) {
                                 logWarn("发现攻击伤害异常: 玩家=" + player.getName() + " Value=" + val + " 范围=[" + damageMin + "," + damageMax + "] Base=" + base);
                                 diagnosis.issues.add(IssueType.ATTRIBUTES);
                             }
-                            // 1.21 新增攻击距离属性检查 (PLAYER_BLOCK_INTERACTION_RANGE / PLAYER_ENTITY_INTERACTION_RANGE)
-                            // 这里的名字可能随版本不同，通用做法是检查所有属性的有效性
                         }
+                    } catch (NullPointerException npe) {
+                        // 捕获属性实例本身的 NPE（如 getValue() 时内部集合损坏）
+                        logWarn("属性实例访问时发生 NPE: 玩家=" + player.getName() + " 属性=" + attr.name() + " 信息=" + npe.getMessage());
+                        diagnosis.issues.add(IssueType.ATTRIBUTES);
                     } catch (Exception attrEx) {
                         // 部分属性在某些版本可能不支持，静默处理
                     }
@@ -309,7 +340,6 @@ public class PlayerMonitor implements Listener {
                 if (player.getInventory() == null) {
                     logWarn("发现玩家物品栏丢失: 玩家=" + player.getName());
                     diagnosis.issues.add(IssueType.INVENTORY);
-                    diagnosis.severe = true;
                 }
             }
 
@@ -360,6 +390,11 @@ public class PlayerMonitor implements Listener {
                 player.setFallDistance(0);
             }
 
+            // 属性深度修复：清除损坏的修饰符并重置属性
+            if (diagnosis.issues.contains(IssueType.ATTRIBUTES)) {
+                repairCorruptedAttributes(player);
+            }
+
             if (diagnosis.issues.contains(IssueType.EFFECTS)) {
                 player.getActivePotionEffects().forEach(effect -> player.removePotionEffect(effect.getType()));
             }
@@ -404,6 +439,52 @@ public class PlayerMonitor implements Listener {
         }
     }
 
+    /**
+     * 深度修复损坏的属性
+     * 清除所有修饰符并重置为基础值，解决 fastutil 内部集合损坏问题
+     */
+    private void repairCorruptedAttributes(Player player) {
+        for (Attribute attr : Attribute.values()) {
+            try {
+                AttributeInstance attrInstance = player.getAttribute(attr);
+                if (attrInstance == null) continue;
+
+                // 尝试清除所有修饰符
+                try {
+                    Collection<AttributeModifier> modifiers = attrInstance.getModifiers();
+                    if (modifiers != null && !modifiers.isEmpty()) {
+                        // 复制一份列表避免 ConcurrentModificationException
+                        List<AttributeModifier> toRemove = new ArrayList<>(modifiers);
+                        for (AttributeModifier modifier : toRemove) {
+                            try {
+                                attrInstance.removeModifier(modifier);
+                            } catch (Exception removeEx) {
+                                // 单个移除失败不影响继续
+                            }
+                        }
+                        logWarn("已清除属性修饰符: 玩家=" + player.getName() + " 属性=" + attr.name() + " 数量=" + toRemove.size());
+                    }
+                } catch (NullPointerException npe) {
+                    // 如果 getModifiers() 抛出 NPE，说明内部集合已损坏
+                    // 尝试通过设置 baseValue 来触发内部重建
+                    logWarn("属性修饰符集合已损坏，尝试强制重建: 玩家=" + player.getName() + " 属性=" + attr.name());
+                }
+
+                // 重置基础值到默认
+                try {
+                    double defaultBase = attrInstance.getDefaultValue();
+                    if (isValidDouble(defaultBase)) {
+                        attrInstance.setBaseValue(defaultBase);
+                    }
+                } catch (Exception baseEx) {
+                    // 忽略
+                }
+            } catch (Exception attrEx) {
+                // 某些属性可能不支持，静默处理
+            }
+        }
+    }
+
     private void sendDiagnosisMessage(Player player, Diagnosis diagnosis, boolean teleported, boolean isCommand, boolean allowContinue) {
         if (player == null) return;
         List<String> items = buildIssueLabels(diagnosis);
@@ -434,10 +515,10 @@ public class PlayerMonitor implements Listener {
 
     private void logDiagnosis(Player player, Diagnosis diagnosis, boolean teleported, boolean isCommand, boolean allowContinue) {
         String itemText = String.join("、", buildIssueLabels(diagnosis));
-        String action = teleported ? "teleport" : "in-place";
-        String context = isCommand ? "command" : "monitor";
-        String result = allowContinue ? "continue" : "blocked";
-        logWarn("诊断结果: 玩家=" + player.getName() + " 项目=" + itemText + " 动作=" + action + " 场景=" + context + " 结果=" + result);
+        String action = teleported ? "已传送到安全位置" : "原地修复完成";
+        String context = isCommand ? "指令触发" : "自动监控";
+        String result = allowContinue ? "允许继续" : "已阻止后续操作";
+        logWarn("修复完成: 玩家=" + player.getName() + " 异常=" + itemText + " 处理=" + action + " 触发方式=" + context + " 后续=" + result);
     }
 
     private String formatMessage(String key, String placeholder, String value) {

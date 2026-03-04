@@ -26,7 +26,7 @@
 
 4.  **获取构建产物**：
     编译完成后，您可以在 `target/` 目录下找到生成的 JAR 文件：
-    *   `AntiCrashProtector-1.2.0.jar` (包含所有依赖的 Shaded 版本)
+    *   `AntiCrashProtector-1.2.1.jar` (包含所有依赖的 Shaded 版本)
 
 ## 📂 项目结构说明
 

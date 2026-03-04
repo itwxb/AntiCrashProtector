@@ -13,6 +13,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerTeleportEvent;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -86,13 +87,26 @@ public class PlayerMonitor implements Listener {
 
     @EventHandler
     public void onPlayerJoin(org.bukkit.event.player.PlayerJoinEvent event) {
-        // 玩家进服时立即检查，防止“登录即崩”的死循环
+        // 玩家进服时立即检查，防止"登录即崩"的死循环
         // 延迟 1 tick 执行，确保玩家数据已完全加载
         Bukkit.getScheduler().runTask(plugin, () -> {
             if (event.getPlayer().isOnline()) {
                 checkSinglePlayer(event.getPlayer(), false);
             }
         });
+        
+        // 延迟 20 tick (1秒) 再次检查，确保所有数据加载完成
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (event.getPlayer().isOnline()) {
+                try {
+                    if (checkAndRepairAttributesBeforeTeleport(event.getPlayer())) {
+                        logWarn("玩家加入后检测并修复了损坏的属性: 玩家=" + event.getPlayer().getName());
+                    }
+                } catch (Exception e) {
+                    logError("玩家加入后属性检查异常: 玩家=" + event.getPlayer().getName(), e);
+                }
+            }
+        }, 20L);
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
@@ -108,6 +122,63 @@ public class PlayerMonitor implements Listener {
         }
         
         lastSafeLocations.remove(player.getUniqueId());
+    }
+    
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onPlayerTeleport(PlayerTeleportEvent event) {
+        Player player = event.getPlayer();
+        
+        if (plugin.getConfig().getBoolean("monitoring.checks.attributes", true)) {
+            try {
+                if (checkAndRepairAttributesBeforeTeleport(player)) {
+                    logWarn("传送前检测并修复了玩家损坏的属性: 玩家=" + player.getName());
+                }
+            } catch (Exception e) {
+                logError("传送前属性检查异常: 玩家=" + player.getName(), e);
+            }
+            
+            // 传送后延迟检查，覆盖传送过程中的属性损坏
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (player.isOnline()) {
+                    try {
+                        if (checkAndRepairAttributesBeforeTeleport(player)) {
+                            logWarn("传送后检测并修复了玩家损坏的属性: 玩家=" + player.getName());
+                        }
+                    } catch (Exception e) {
+                        logError("传送后属性检查异常: 玩家=" + player.getName(), e);
+                    }
+                }
+            }, 3L); // 延迟 3 tick (150ms)，确保传送完成
+        }
+    }
+    
+    private boolean checkAndRepairAttributesBeforeTeleport(Player player) {
+        boolean hasCorruption = false;
+        
+        for (Attribute attr : Attribute.values()) {
+            try {
+                AttributeInstance attrInstance = player.getAttribute(attr);
+                if (attrInstance == null) continue;
+                
+                try {
+                    Collection<AttributeModifier> modifiers = attrInstance.getModifiers();
+                    if (modifiers != null) {
+                        for (AttributeModifier modifier : modifiers) {
+                            if (modifier == null) continue;
+                            modifier.getAmount();
+                        }
+                    }
+                } catch (NullPointerException npe) {
+                    logWarn("传送前检测到属性修饰符集合损坏: 玩家=" + player.getName() + " 属性=" + attr.name());
+                    hasCorruption = true;
+                    forceRepairAttributeDeep(attrInstance, attr);
+                }
+            } catch (Exception attrEx) {
+                // 静默处理
+            }
+        }
+        
+        return hasCorruption;
     }
     
     private void preCheckAndRepairAttributes(Player player) {
@@ -141,7 +212,10 @@ public class PlayerMonitor implements Listener {
         }
     }
     
-    private void forceRepairAttributeDeep(AttributeInstance attrInstance, Attribute attr) {
+    /**
+     * 将属性实例重置为默认值
+     */
+    private void resetAttributeToDefault(AttributeInstance attrInstance) {
         try {
             double defaultBase = attrInstance.getDefaultValue();
             if (isValidDouble(defaultBase)) {
@@ -150,7 +224,13 @@ public class PlayerMonitor implements Listener {
         } catch (Exception e) {
             // 忽略
         }
-        
+    }
+    
+    /**
+     * 通过反射清空属性实例的修饰符集合
+     * 用于修复 fastutil ObjectOpenHashSet 内部结构损坏的情况
+     */
+    private void clearAttributeModifiersViaReflection(AttributeInstance attrInstance, Attribute attr) {
         try {
             Object craftAttrInstance = attrInstance;
             Field handleField = craftAttrInstance.getClass().getDeclaredField("handle");
@@ -187,6 +267,15 @@ public class PlayerMonitor implements Listener {
         } catch (Exception reflectEx) {
             // 反射失败时静默处理，不影响正常流程
         }
+    }
+    
+    /**
+     * 深度修复损坏的属性实例
+     * 重置基础值并通过反射清空修饰符集合
+     */
+    private void forceRepairAttributeDeep(AttributeInstance attrInstance, Attribute attr) {
+        resetAttributeToDefault(attrInstance);
+        clearAttributeModifiersViaReflection(attrInstance, attr);
     }
 
     public static PlayerMonitor getInstance() {
@@ -559,18 +648,11 @@ public class PlayerMonitor implements Listener {
                     // 如果 getModifiers() 抛出 NPE，说明内部集合已损坏
                     // 尝试通过反射强制修复
                     logWarn("属性修饰符集合已损坏，尝试强制重建: 玩家=" + player.getName() + " 属性=" + attr.name());
-                    forceRepairAttributeDeep(attrInstance, attr);
+                    clearAttributeModifiersViaReflection(attrInstance, attr);
                 }
 
                 // 重置基础值到默认
-                try {
-                    double defaultBase = attrInstance.getDefaultValue();
-                    if (isValidDouble(defaultBase)) {
-                        attrInstance.setBaseValue(defaultBase);
-                    }
-                } catch (Exception baseEx) {
-                    // 忽略
-                }
+                resetAttributeToDefault(attrInstance);
             } catch (Exception attrEx) {
                 // 某些属性可能不支持，静默处理
             }

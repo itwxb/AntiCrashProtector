@@ -47,7 +47,7 @@ To ensure transparency and professional expectations, please note the following:
 
 ```yaml
 # AntiCrashProtector Configuration
-# Version: 1.2.0
+# Version: 1.2.1
 
 # Global toggle
 enabled: true
@@ -90,7 +90,7 @@ repair:
 ## 📥 Installation
 
 1. **Install ProtocolLib** (Recommended): Download [ProtocolLib](https://www.spigotmc.org/resources/protocollib.1997/) and place it in the `plugins` folder.
-2. Place `AntiCrashProtector-1.2.0.jar` in your server's `plugins` folder.
+2. Place `AntiCrashProtector-1.2.1.jar` in your server's `plugins` folder.
 3. Restart the server.
 4. Use `/anticrash status` to confirm all modules are active:
    - Packet Interception: Running
@@ -100,6 +100,13 @@ repair:
 ---
 
 ## 📋 Update Log
+
+### v1.2.1 (2026-03-05)
+
+**Hotfix: Teleport Crash Prevention**
+
+- **🚀 Pre-teleport Attribute Check**: Added `PlayerTeleportEvent` listener to check and repair attributes before teleportation, preventing crashes caused by `/tpa`, `/tpaccept`, and other teleport commands.
+- **🐛 Bug Fix**: Previously, `/tpaccept` only checked the executor, not the teleport recipient, causing crashes when the recipient had corrupted attributes.
 
 ### v1.2.0 (2026-03-04)
 

@@ -1,5 +1,5 @@
 name: AntiCrashProtector
-version: 1.2.0
+version: 1.2.1
 main: com.anticrash.AntiCrashPlugin
 api-version: '1.21'
 authors: [MXZD]

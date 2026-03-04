@@ -106,6 +106,8 @@ repair:
 **Hotfix: Teleport Crash Prevention**
 
 - **🚀 Pre-teleport Attribute Check**: Added `PlayerTeleportEvent` listener to check and repair attributes before teleportation, preventing crashes caused by `/tpa`, `/tpaccept`, and other teleport commands.
+- **🔄 Post-teleport Delayed Check**: Re-checks attributes 3 ticks after teleport completion to cover corruption that occurs during teleportation.
+- **👤 Post-join Check**: Re-checks attributes 20 ticks after player join to ensure all data is fully loaded before validating attribute integrity.
 - **🐛 Bug Fix**: Previously, `/tpaccept` only checked the executor, not the teleport recipient, causing crashes when the recipient had corrupted attributes.
 
 ### v1.2.0 (2026-03-04)

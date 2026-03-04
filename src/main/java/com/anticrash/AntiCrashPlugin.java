@@ -22,6 +22,7 @@ public class AntiCrashPlugin extends JavaPlugin {
     private CommandInterceptor commandInterceptor;
     private PlayerMonitor playerMonitor;
     private LogManager logManager;
+    private AttributePacketInterceptor attributePacketInterceptor;
 
     /**
      * 获取插件单例实例
@@ -66,6 +67,10 @@ public class AntiCrashPlugin extends JavaPlugin {
             HandlerList.unregisterAll(commandInterceptor);
             commandInterceptor = null;
         }
+        if (attributePacketInterceptor != null) {
+            attributePacketInterceptor.unregister();
+            attributePacketInterceptor = null;
+        }
         
         instance = null;
         getLogger().info("AntiCrashProtector 已停止");
@@ -81,6 +86,10 @@ public class AntiCrashPlugin extends JavaPlugin {
 
     public LogManager getLogManager() {
         return logManager;
+    }
+    
+    public AttributePacketInterceptor getAttributePacketInterceptor() {
+        return attributePacketInterceptor;
     }
 
     /**
@@ -140,6 +149,24 @@ public class AntiCrashPlugin extends JavaPlugin {
             playerMonitor.stopMonitoring();
             if (log) {
                 getLogger().info("[核心] 玩家健康自动巡逻任务已关闭 (按需触发检查模式)");
+            }
+        }
+        
+        // 初始化属性包拦截器（需要 ProtocolLib）
+        if (getServer().getPluginManager().getPlugin("ProtocolLib") != null) {
+            if (attributePacketInterceptor == null) {
+                attributePacketInterceptor = new AttributePacketInterceptor(this);
+            }
+            if (getConfig().getBoolean("packet-interception.enabled", true)) {
+                attributePacketInterceptor.register();
+                if (log) {
+                    getLogger().info("[核心] 属性数据包拦截器已启用 (需 ProtocolLib)");
+                }
+            }
+        } else {
+            if (log) {
+                getLogger().warning("[核心] 未检测到 ProtocolLib，属性数据包拦截器已跳过");
+                getLogger().warning("[核心] 建议安装 ProtocolLib 以获得更完整的崩溃防护");
             }
         }
     }

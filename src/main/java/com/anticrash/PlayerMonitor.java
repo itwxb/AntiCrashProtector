@@ -10,9 +10,12 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
@@ -92,10 +95,98 @@ public class PlayerMonitor implements Listener {
         });
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onPlayerQuit(PlayerQuitEvent event) {
-        // 玩家退出时清理缓存，防止内存泄漏
-        lastSafeLocations.remove(event.getPlayer().getUniqueId());
+        Player player = event.getPlayer();
+        
+        if (plugin.getConfig().getBoolean("monitoring.checks.attributes", true)) {
+            try {
+                preCheckAndRepairAttributes(player);
+            } catch (Exception e) {
+                logError("玩家退出时属性预检查异常: 玩家=" + player.getName(), e);
+            }
+        }
+        
+        lastSafeLocations.remove(player.getUniqueId());
+    }
+    
+    private void preCheckAndRepairAttributes(Player player) {
+        boolean hasCorruption = false;
+        
+        for (Attribute attr : Attribute.values()) {
+            try {
+                AttributeInstance attrInstance = player.getAttribute(attr);
+                if (attrInstance == null) continue;
+                
+                try {
+                    Collection<AttributeModifier> modifiers = attrInstance.getModifiers();
+                    if (modifiers != null) {
+                        for (AttributeModifier modifier : modifiers) {
+                            if (modifier == null) continue;
+                            modifier.getAmount();
+                        }
+                    }
+                } catch (NullPointerException npe) {
+                    logWarn("玩家退出时检测到属性修饰符集合损坏: 玩家=" + player.getName() + " 属性=" + attr.name());
+                    hasCorruption = true;
+                    forceRepairAttributeDeep(attrInstance, attr);
+                }
+            } catch (Exception attrEx) {
+                // 静默处理
+            }
+        }
+        
+        if (hasCorruption) {
+            logWarn("已修复玩家退出时的属性损坏: 玩家=" + player.getName());
+        }
+    }
+    
+    private void forceRepairAttributeDeep(AttributeInstance attrInstance, Attribute attr) {
+        try {
+            double defaultBase = attrInstance.getDefaultValue();
+            if (isValidDouble(defaultBase)) {
+                attrInstance.setBaseValue(defaultBase);
+            }
+        } catch (Exception e) {
+            // 忽略
+        }
+        
+        try {
+            Object craftAttrInstance = attrInstance;
+            Field handleField = craftAttrInstance.getClass().getDeclaredField("handle");
+            handleField.setAccessible(true);
+            Object nmsAttributeInstance = handleField.get(craftAttrInstance);
+            
+            if (nmsAttributeInstance != null) {
+                Field modifiersField = null;
+                Class<?> clazz = nmsAttributeInstance.getClass();
+                while (clazz != null && modifiersField == null) {
+                    try {
+                        modifiersField = clazz.getDeclaredField("modifiers");
+                    } catch (NoSuchFieldException e) {
+                        clazz = clazz.getSuperclass();
+                    }
+                }
+                
+                if (modifiersField != null) {
+                    modifiersField.setAccessible(true);
+                    Object modifiersObj = modifiersField.get(nmsAttributeInstance);
+                    
+                    if (modifiersObj != null) {
+                        try {
+                            Method clearMethod = modifiersObj.getClass().getMethod("clear");
+                            clearMethod.invoke(modifiersObj);
+                            logWarn("已通过反射清空损坏的修饰符集合: 属性=" + attr.name());
+                        } catch (Exception clearEx) {
+                            modifiersField.set(nmsAttributeInstance, null);
+                            logWarn("已通过反射置空损坏的修饰符集合: 属性=" + attr.name());
+                        }
+                    }
+                }
+            }
+        } catch (Exception reflectEx) {
+            // 反射失败时静默处理，不影响正常流程
+        }
     }
 
     public static PlayerMonitor getInstance() {
@@ -466,8 +557,9 @@ public class PlayerMonitor implements Listener {
                     }
                 } catch (NullPointerException npe) {
                     // 如果 getModifiers() 抛出 NPE，说明内部集合已损坏
-                    // 尝试通过设置 baseValue 来触发内部重建
+                    // 尝试通过反射强制修复
                     logWarn("属性修饰符集合已损坏，尝试强制重建: 玩家=" + player.getName() + " 属性=" + attr.name());
+                    forceRepairAttributeDeep(attrInstance, attr);
                 }
 
                 // 重置基础值到默认

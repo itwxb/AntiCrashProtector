@@ -131,6 +131,29 @@ public class AntiCrashCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(ChatColor.DARK_GRAY + "  - 保护指令 (" + cmds.size() + "个): " + ChatColor.WHITE + String.join(", ", cmds));
         }
 
+        // 属性数据包拦截模块
+        boolean packetInterceptionEnabled = plugin.getConfig().getBoolean("packet-interception.enabled", true);
+        boolean hasProtocolLib = plugin.getServer().getPluginManager().getPlugin("ProtocolLib") != null;
+        boolean isPacketInterceptorRunning = plugin.getAttributePacketInterceptor() != null && 
+                                              plugin.getAttributePacketInterceptor().isRegistered();
+        
+        String packetStatusText;
+        if (!hasProtocolLib) {
+            packetStatusText = ChatColor.YELLOW + "未运行 (缺少 ProtocolLib)";
+        } else if (!packetInterceptionEnabled) {
+            packetStatusText = ChatColor.RED + "未运行 (配置已关闭)";
+        } else if (isPacketInterceptorRunning) {
+            packetStatusText = ChatColor.GREEN + "运行中";
+        } else {
+            packetStatusText = ChatColor.YELLOW + "异常 (配置开启但未运行)";
+        }
+        sender.sendMessage(ChatColor.GRAY + "属性包拦截: " + packetStatusText);
+        
+        if (hasProtocolLib && isPacketInterceptorRunning) {
+            sender.sendMessage(ChatColor.DARK_GRAY + "  - 拦截目标: " + ChatColor.WHITE + "属性更新数据包");
+            sender.sendMessage(ChatColor.DARK_GRAY + "  - 功能说明: " + ChatColor.WHITE + "在发送属性包前检查并修复损坏数据");
+        }
+
         // 自动监控模块
         boolean monitorEnabled = plugin.getConfig().getBoolean("monitoring.enabled", true);
         boolean isMonitoringRunning = plugin.getPlayerMonitor() != null && plugin.getPlayerMonitor().isMonitoring();
